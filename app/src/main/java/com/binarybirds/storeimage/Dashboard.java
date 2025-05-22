@@ -31,7 +31,7 @@ public class Dashboard extends AppCompatActivity {
     Button signOutBtn;
     SessionManager sessionManager;
     TextView result;
-    String url = "http://192.168.0.100/Store Image and SIgn in and Sign Up/get_user_orders.php";
+    String url = "http://192.168.0.103/Store%20Image%20and%20SIgn%20in%20and%20Sign%20Up/get_user_orders.php";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

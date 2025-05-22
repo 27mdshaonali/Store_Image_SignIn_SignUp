@@ -6,6 +6,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.util.Base64;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -16,6 +17,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.android.volley.AuthFailureError;
+import com.android.volley.NetworkResponse;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.StringRequest;
@@ -34,7 +36,7 @@ public class SignUp extends AppCompatActivity {
     ImageView imageView;
     Bitmap selectedBitmap = null;
 
-    String SIGN_UP_URL = "http://192.168.0.100/Store%20Image%20and%20SIgn%20in%20and%20Sign%20Up/sign_up.php";
+    String SIGN_UP_URL = "http://192.168.0.103/Store%20Image%20and%20SIgn%20in%20and%20Sign%20Up/sign_up.php";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,12 +73,8 @@ public class SignUp extends AppCompatActivity {
                 return;
             }
 
-            if (selectedBitmap == null) {
-                Toast.makeText(getApplicationContext(), "Please select a profile image", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            String encodedImage = bitmapToBase64(selectedBitmap);
+            // Image is optional now
+            String encodedImage = selectedBitmap != null ? bitmapToBase64(selectedBitmap) : "";
 
             StringRequest stringRequest = new StringRequest(Request.Method.POST, SIGN_UP_URL, response -> {
                 switch (response.trim()) {
@@ -84,7 +82,7 @@ public class SignUp extends AppCompatActivity {
                         Toast.makeText(getApplicationContext(), "Sign Up Successful", Toast.LENGTH_SHORT).show();
 
                         // ✅ Create session after successful sign-up
-                        SessionManager sessionManager = new SessionManager(SignUp.this);
+                        SessionManager sessionManager = new SessionManager(this);
                         sessionManager.createLoginSession(email);
 
                         // Navigate to Dashboard
@@ -102,7 +100,14 @@ public class SignUp extends AppCompatActivity {
                         Toast.makeText(getApplicationContext(), "Failed: " + response, Toast.LENGTH_SHORT).show();
                         break;
                 }
-            }, error -> Toast.makeText(getApplicationContext(), "Error: " + error.toString(), Toast.LENGTH_LONG).show()) {
+            }, error -> {
+                NetworkResponse networkResponse = error.networkResponse;
+                if (networkResponse != null) {
+                    Log.e("VolleyError", "Status Code: " + networkResponse.statusCode);
+                    Log.e("VolleyError", "Response Data: " + new String(networkResponse.data));
+                }
+                Toast.makeText(getApplicationContext(), "Error: " + error.toString(), Toast.LENGTH_LONG).show();
+            }) {
                 @Override
                 protected Map<String, String> getParams() throws AuthFailureError {
                     Map<String, String> data = new HashMap<>();
@@ -111,6 +116,11 @@ public class SignUp extends AppCompatActivity {
                     data.put("password", pass);
                     data.put("image", encodedImage);
                     return data;
+                }
+
+                @Override
+                public String getBodyContentType() {
+                    return "application/x-www-form-urlencoded; charset=UTF-8";
                 }
             };
 
