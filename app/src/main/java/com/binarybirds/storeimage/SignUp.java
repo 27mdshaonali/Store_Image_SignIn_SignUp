@@ -1,55 +1,46 @@
 package com.binarybirds.storeimage;
 
+import android.app.Activity;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
+import android.util.Base64;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import com.android.volley.AuthFailureError;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
 public class SignUp extends AppCompatActivity {
-
+    private static final int REQUEST_GALLERY = 1;
     EditText signUpName, signUpEmail, signUpPass, signUpRePass;
     TextView logInPage;
     Button signUpBtn;
     ImageView imageView;
-    String name, email, pass, rePass;
+    Bitmap selectedBitmap = null;
 
-    // Use a clean folder name (no spaces) on your server
     String SIGN_UP_URL = "http://192.168.0.100/Store%20Image%20and%20SIgn%20in%20and%20Sign%20Up/sign_up.php";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_sign_up);
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
-
-        // Initialize views
         signUpName = findViewById(R.id.signUpName);
         signUpEmail = findViewById(R.id.signUpEmail);
         signUpPass = findViewById(R.id.signUpPass);
@@ -58,14 +49,18 @@ public class SignUp extends AppCompatActivity {
         logInPage = findViewById(R.id.logInPage);
         imageView = findViewById(R.id.imageView);
 
-        // Sign Up Button Click
-        signUpBtn.setOnClickListener(v -> {
-            name = signUpName.getText().toString().trim();
-            email = signUpEmail.getText().toString().trim();
-            pass = signUpPass.getText().toString().trim();
-            rePass = signUpRePass.getText().toString().trim();
+        imageView.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_PICK);
+            intent.setType("image/*");
+            startActivityForResult(intent, REQUEST_GALLERY);
+        });
 
-            // Basic validation
+        signUpBtn.setOnClickListener(v -> {
+            String name = signUpName.getText().toString().trim();
+            String email = signUpEmail.getText().toString().trim();
+            String pass = signUpPass.getText().toString().trim();
+            String rePass = signUpRePass.getText().toString().trim();
+
             if (name.isEmpty() || email.isEmpty() || pass.isEmpty() || rePass.isEmpty()) {
                 Toast.makeText(getApplicationContext(), "Please fill all the fields", Toast.LENGTH_SHORT).show();
                 return;
@@ -76,49 +71,76 @@ public class SignUp extends AppCompatActivity {
                 return;
             }
 
-            // Send data to server using Volley
-            StringRequest stringRequest = new StringRequest(Request.Method.POST, SIGN_UP_URL,
-                    new Response.Listener<String>() {
-                        @Override
-                        public void onResponse(String response) {
-                            if (response.trim().equals("success")) {
-                                Toast.makeText(getApplicationContext(), "Sign Up Successful", Toast.LENGTH_SHORT).show();
-                                startActivity(new Intent(getApplicationContext(), Dashboard.class));
-                                signUpBtn.setClickable(false); // Prevent multiple clicks
-                            } else if (response.trim().equals("exists")) {
-                                Toast.makeText(getApplicationContext(), "Email already exists", Toast.LENGTH_SHORT).show();
-                            } else {
-                                Toast.makeText(getApplicationContext(), "Sign Up Failed: " + response, Toast.LENGTH_SHORT).show();
-                            }
-                        }
-                    },
-                    new Response.ErrorListener() {
-                        @Override
-                        public void onErrorResponse(VolleyError error) {
-                            Toast.makeText(getApplicationContext(), "Error: " + error.toString(), Toast.LENGTH_LONG).show();
-                        }
-                    }) {
+            if (selectedBitmap == null) {
+                Toast.makeText(getApplicationContext(), "Please select a profile image", Toast.LENGTH_SHORT).show();
+                return;
+            }
 
-                @Nullable
+            String encodedImage = bitmapToBase64(selectedBitmap);
+
+            StringRequest stringRequest = new StringRequest(Request.Method.POST, SIGN_UP_URL, response -> {
+                switch (response.trim()) {
+                    case "success":
+                        Toast.makeText(getApplicationContext(), "Sign Up Successful", Toast.LENGTH_SHORT).show();
+
+                        // ✅ Create session after successful sign-up
+                        SessionManager sessionManager = new SessionManager(SignUp.this);
+                        sessionManager.createLoginSession(email);
+
+                        // Navigate to Dashboard
+                        startActivity(new Intent(getApplicationContext(), Dashboard.class));
+                        finish();
+                        break;
+
+                    case "exists":
+                        Toast.makeText(getApplicationContext(), "Email already exists", Toast.LENGTH_SHORT).show();
+                        break;
+                    case "image_upload_failed":
+                        Toast.makeText(getApplicationContext(), "Image upload failed", Toast.LENGTH_SHORT).show();
+                        break;
+                    default:
+                        Toast.makeText(getApplicationContext(), "Failed: " + response, Toast.LENGTH_SHORT).show();
+                        break;
+                }
+            }, error -> Toast.makeText(getApplicationContext(), "Error: " + error.toString(), Toast.LENGTH_LONG).show()) {
                 @Override
                 protected Map<String, String> getParams() throws AuthFailureError {
                     Map<String, String> data = new HashMap<>();
                     data.put("name", name);
                     data.put("email", email);
                     data.put("password", pass);
+                    data.put("image", encodedImage);
                     return data;
-
                 }
             };
 
-            // Add request to queue
             RequestQueue requestQueue = Volley.newRequestQueue(getApplicationContext());
             requestQueue.add(stringRequest);
         });
 
-        // Go to login page
         logInPage.setOnClickListener(v -> {
             startActivity(new Intent(SignUp.this, MainActivity.class));
         });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_GALLERY && resultCode == Activity.RESULT_OK && data != null && data.getData() != null) {
+            try {
+                InputStream inputStream = getContentResolver().openInputStream(data.getData());
+                selectedBitmap = BitmapFactory.decodeStream(inputStream);
+                imageView.setImageBitmap(selectedBitmap);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private String bitmapToBase64(Bitmap bitmap) {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 70, stream);
+        byte[] imageBytes = stream.toByteArray();
+        return Base64.encodeToString(imageBytes, Base64.DEFAULT);
     }
 }
