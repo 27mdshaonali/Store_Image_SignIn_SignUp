@@ -2,6 +2,7 @@ package com.binarybirds.storeimage;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
@@ -79,14 +80,23 @@ public class SignUp extends AppCompatActivity {
             StringRequest stringRequest = new StringRequest(Request.Method.POST, SIGN_UP_URL, response -> {
                 switch (response.trim()) {
                     case "success":
+
+
                         Toast.makeText(getApplicationContext(), "Sign Up Successful", Toast.LENGTH_SHORT).show();
 
                         // ✅ Create session after successful sign-up
                         SessionManager sessionManager = new SessionManager(this);
                         sessionManager.createLoginSession(email);
 
+
+                        SharedPreferences prefs = getSharedPreferences("UserData", MODE_PRIVATE);
+                        prefs.edit().putString("email", email).apply();
+
+
                         // Navigate to Dashboard
-                        startActivity(new Intent(getApplicationContext(), Dashboard.class));
+                        Intent intent = new Intent(getApplicationContext(), Dashboard.class);
+                        intent.putExtra("email", email);
+                        startActivity(intent);
                         finish();
                         break;
 
@@ -106,7 +116,7 @@ public class SignUp extends AppCompatActivity {
                     Log.e("VolleyError", "Status Code: " + networkResponse.statusCode);
                     Log.e("VolleyError", "Response Data: " + new String(networkResponse.data));
                 }
-                Toast.makeText(getApplicationContext(), "Error: " + error.toString(), Toast.LENGTH_LONG).show();
+                Toast.makeText(getApplicationContext(), "Error: " + error, Toast.LENGTH_LONG).show();
             }) {
                 @Override
                 protected Map<String, String> getParams() throws AuthFailureError {
